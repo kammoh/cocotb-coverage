@@ -33,7 +33,6 @@ Constrained-random verification features unittest.
 
 from cocotb_coverage import coverage
 
-import pytest
 import random
 
 

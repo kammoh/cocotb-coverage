@@ -1,5 +1,4 @@
-
-'''Copyright (c) 2019-2023, MC ASIC Design Consulting
+"""Copyright (c) 2019-2023, MC ASIC Design Consulting
 All rights reserved.
 
 Author: Marek Cieplucha, https://github.com/mciepluc
@@ -24,7 +23,7 @@ DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
 ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. '''
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. """
 
 """
 Example FIFO testbench with functional coverage.
@@ -44,124 +43,132 @@ from collections import deque
 
 import random
 
-class FifoStatus():
+
+class FifoStatus:
     """
     Object representing FIFO status (full/empty etc.)
     """
+
     def __init__(self, dut):
         self.dut = dut
 
-    @cocotb.coroutine
-    def update(self):
-        yield ReadOnly()
-        self.empty = (self.dut.fifo_empty == 1)
-        self.full = (self.dut.fifo_full == 1)
-        self.threshold = (self.dut.fifo_threshold == 1)
-        self.overflow = (self.dut.fifo_overflow == 1)
-        self.underflow = (self.dut.fifo_underflow == 1)
+    async def update(self):
+        await ReadOnly()
+        self.empty = self.dut.fifo_empty.value == 1
+        self.full = self.dut.fifo_full.value == 1
+        self.threshold = self.dut.fifo_threshold.value == 1
+        self.overflow = self.dut.fifo_overflow.value == 1
+        self.underflow = self.dut.fifo_underflow.value == 1
 
-#functional coverage - check if all FIFO states have been reached
-#and check if read or write operation performed in every FIFO state
-FIFO_Coverage = coverage_section (
-  CoverPoint("top.rw", vname="rw", bins = [True, False]),
-  CoverPoint("top.fifo_empty", xf = lambda data, rw, status : status.empty, bins = [True, False]),
-  CoverPoint("top.fifo_full", xf = lambda data, rw, status : status.full, bins = [True, False]),
-  CoverPoint("top.fifo_threshold", xf = lambda data, rw, status : status.threshold, bins = [True, False]),
-  CoverPoint("top.fifo_overflow", xf = lambda data, rw, status : status.overflow, bins = [True, False]),
-  CoverPoint("top.fifo_underflow", xf = lambda data, rw, status : status.underflow, bins = [True, False]),
-  CoverCross("top.rwXempty", items = ["top.rw", "top.fifo_empty"]),
-  CoverCross("top.rwXfull", items = ["top.rw", "top.fifo_full"]),
-  CoverCross("top.rwXthreshold", items = ["top.rw", "top.fifo_threshold"]),
-  CoverCross("top.rwXoverflow", items = ["top.rw", "top.fifo_overflow"]),
-  CoverCross("top.rwXunderflow", items = ["top.rw", "top.fifo_underflow"])
+
+# functional coverage - check if all FIFO states have been reached
+# and check if read or write operation performed in every FIFO state
+FIFO_Coverage = coverage_section(
+    CoverPoint("top.rw", vname="rw", bins=[True, False]),
+    CoverPoint("top.fifo_empty", xf=lambda data, rw, status: status.empty, bins=[True, False]),
+    CoverPoint("top.fifo_full", xf=lambda data, rw, status: status.full, bins=[True, False]),
+    CoverPoint(
+        "top.fifo_threshold", xf=lambda data, rw, status: status.threshold, bins=[True, False]
+    ),
+    CoverPoint(
+        "top.fifo_overflow", xf=lambda data, rw, status: status.overflow, bins=[True, False]
+    ),
+    CoverPoint(
+        "top.fifo_underflow", xf=lambda data, rw, status: status.underflow, bins=[True, False]
+    ),
+    CoverCross("top.rwXempty", items=["top.rw", "top.fifo_empty"]),
+    CoverCross("top.rwXfull", items=["top.rw", "top.fifo_full"]),
+    CoverCross("top.rwXthreshold", items=["top.rw", "top.fifo_threshold"]),
+    CoverCross("top.rwXoverflow", items=["top.rw", "top.fifo_overflow"]),
+    CoverCross("top.rwXunderflow", items=["top.rw", "top.fifo_underflow"]),
 )
 
-#simple clock generator
-@cocotb.coroutine
-def clock_gen(signal, period=10000):
+
+# simple clock generator
+async def clock_gen(signal, period=10000):
     while True:
-        signal <= 0
-        yield Timer(period/2)
-        signal <= 1
-        yield Timer(period/2)
+        signal.value = 0
+        await Timer(period / 2)
+        signal.value = 1
+        await Timer(period / 2)
 
-@cocotb.test()
-def fifo_test(dut):
-    """ FIFO Test """
 
-    log = cocotb.logging.getLogger("cocotb.test") #logger instance
-    cocotb.fork(clock_gen(dut.clk, period=100)) #start clock running
+@cocotb.test
+async def fifo_test(dut):
+    """FIFO Test"""
 
-    fifo_model = deque() #simple scoreboarding - FIFO model as double-ended queue
+    log = dut._log  # cocotb.logging.getLogger("cocotb.test") #logger instance
+    cocotb.start_soon(clock_gen(dut.clk, period=100))  # start clock running
 
-    #reset & init
-    dut.rst_n <= 1
-    dut.wr <= 0
-    dut.rd <= 0
-    dut.data_in <= 0
+    fifo_model = deque()  # simple scoreboarding - FIFO model as double-ended queue
 
-    yield Timer(1000)
-    dut.rst_n <= 0
-    yield Timer(1000)
-    dut.rst_n <= 1
+    # reset & init
+    dut.rst_n.value = 1
+    dut.wr.value = 0
+    dut.rd.value = 0
+    dut.data_in.value = 0
 
-    #procedure of processing data (FIFO logic)
-    #coverage sampled here - at each function call
+    await Timer(1000)
+    dut.rst_n.value = 0
+    await RisingEdge(dut.clk)
+    await Timer(1000)
+    dut.rst_n.value = 1
+
+    # procedure of processing data (FIFO logic)
+    # coverage sampled here - at each function call
     @FIFO_Coverage
-    @cocotb.coroutine
-    def process_data(data, rw, status):
+    async def process_data(data, rw, status):
         success = True
-        if rw: #read
-            yield RisingEdge(dut.clk)
-            #even if fifo empty, try to access in order to reach underflow status
-            if (status.empty):
+        if rw:  # read
+            await RisingEdge(dut.clk)
+            # even if fifo empty, try to access in order to reach underflow status
+            if status.empty:
                 success = False
             else:
-                data = int(dut.data_out)
-            dut.rd <= 1
-            yield RisingEdge(dut.clk)
-            dut.rd <= 0
+                data = int(dut.data_out.value)
+            dut.rd.value = 1
+            await RisingEdge(dut.clk)
+            dut.rd.value = 0
         elif not rw:
-            yield RisingEdge(dut.clk)
-            dut.data_in <= data
-            dut.wr <= 1
-            yield RisingEdge(dut.clk)
-            dut.wr <= 0
-            #if FIFO full, data was not written (overflow status)
+            await RisingEdge(dut.clk)
+            dut.data_in.value = data
+            dut.wr.value = 1
+            await RisingEdge(dut.clk)
+            dut.wr.value = 0
+            # if FIFO full, data was not written (overflow status)
             if status.full:
                 success = False
         return data, success
 
-    status = FifoStatus(dut) #create FifoStatus object
+    status = FifoStatus(dut)  # create FifoStatus object
 
-    #main loop
-    for _ in range(100): #is that enough repetitions to ensure coverage goal? Check out!
+    # main loop
+    for _ in range(300):  # is that enough repetitions to ensure coverage goal? Check out!
         rw = random.choice([True, False])
-        data = random.randint(0,255) if not rw else None
+        data = random.randint(0, 255) if not rw else None
 
-        #call coroutines
-        yield status.update() #check FIFO state
-        #process data, and check if succeded
-        data, success = yield process_data(data, rw, status)
+        # call coroutines
+        await status.update()  # check FIFO state
+        # process data, and check if succeded
+        data, success = await process_data(data, rw, status)
 
-        if rw: #read
+        if rw:  # read
             if success:
-                #if successful read, check read data with the model
-                assert(data == fifo_model.pop())
+                # if successful read, check read data with the model
+                assert data == fifo_model.pop()
                 log.info("Data read from fifo: %X", data)
             else:
                 log.info("Data NOT read, fifo EMPTY!")
-        else: #write
+        else:  # write
             if success:
-                #if successful write, append written data to the model
+                # if successful write, append written data to the model
                 fifo_model.appendleft(data)
                 log.info("Data written to fifo: %X", data)
             else:
                 log.info("Data NOT written, fifo FULL!")
 
-    #print coverage report
+    # print coverage report
     coverage_db.report_coverage(log.info, bins=True)
-    #export
+    # export
     coverage_db.export_to_xml(filename="coverage_fifo.xml")
     coverage_db.export_to_yaml(filename="coverage_fifo.yml")
-

@@ -1,5 +1,4 @@
-
-'''Copyright (c) 2019-2023, MC ASIC Design Consulting
+"""Copyright (c) 2019-2023, MC ASIC Design Consulting
 All rights reserved.
 
 Author: Marek Cieplucha, https://github.com/mciepluc
@@ -24,15 +23,17 @@ DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
 ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. '''
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. """
 
 """
 Constrained-random verification features unittest.
 """
+from typing import Optional
 from cocotb_coverage import crv
 from cocotb_coverage import coverage
 
 import pytest
+
 
 class SimpleRandomized(crv.Randomized):
 
@@ -48,50 +49,55 @@ class SimpleRandomized(crv.Randomized):
 
         self.add_constraint(lambda x, y: x < y)
 
-#simple randomization - test if simple constraint works and if all
-#possible SimpleRandomize.size values picked
+
+# simple randomization - test if simple constraint works and if all
+# possible SimpleRandomize.size values picked
 def test_simple_0():
     print("Running test_simple_0")
-    
+
     size_hits = []
     for _ in range(20):
         a = SimpleRandomized(0, 0)
         a.randomize()
         assert a.x < a.y
         size_hits.append(a.size)
-    assert [x in size_hits for x in["small", "medium", "large"]] == [True, True, True]
+    assert [x in size_hits for x in ["small", "medium", "large"]] == [True, True, True]
+
 
 class RandomizedTrasaction(crv.Randomized):
 
-    def __init__(self, address, data=0, write=False, delay=1):
+    def __init__(self, address, data: Optional[int] = 0, write=False, delay=1):
         crv.Randomized.__init__(self)
         self.addr = address
-        self.data = data
+        self.data: int
+        if data is None:
+            self.data = -1
+            self.add_rand("data")
+        else:
+            self.data = data
         self.write = write
         self.delay1 = delay
         self.delay2 = 0
         self.delay3 = 0
 
-        if data is None:
-            self.add_rand("data")
-
         self.add_rand("delay1", list(range(10)))
         self.add_rand("delay2", list(range(10)))
         self.add_rand("delay3", list(range(10)))
-        
+
         c1 = lambda delay1, delay2: delay1 <= delay2
         d1 = lambda delay1, delay2: 0.9 if (delay2 < 5) else 0.1
         d2 = lambda addr, delay1: 0.5 * delay1 if (addr == 5) else 1
         d3 = lambda delay1: 0.7 if (delay1 < 5) else 0.3
         c2 = lambda addr, data: data < 10000 if (addr == 0) else data < 5000
-        
+
         self.add_constraint(c1)
         self.add_constraint(c2)
         self.add_constraint(d1)
         self.add_constraint(d2)
         self.add_constraint(d3)
 
-#test if several constraints met at once
+
+# test if several constraints met at once
 def test_simple_1():
     print("Running test_simple_1")
     for i in range(10):
@@ -99,21 +105,27 @@ def test_simple_1():
         x.randomize()
         assert x.delay1 <= x.delay2
         assert x.data <= 10000
-        print("delay1 = %d, delay2 = %d, delay3 = %d, data = %d" %
-              (x.delay1, x.delay2, x.delay3, x.data))
+        print(
+            "delay1 = %d, delay2 = %d, delay3 = %d, data = %d"
+            % (x.delay1, x.delay2, x.delay3, x.data)
+        )
 
-#test if randomize_with() is replacing existing constraint c1
+
+# test if randomize_with() is replacing existing constraint c1
 def test_randomize_with():
     print("Running test_randomize_with")
     for i in range(10):
         x = RandomizedTrasaction(i, data=None)
         x.randomize_with(lambda delay1, delay2: delay1 == delay2 - 1)
-        print("delay1 = %d, delay2 = %d, delay3 = %d, data = %d" %
-              (x.delay1, x.delay2, x.delay3, x.data))
+        print(
+            "delay1 = %d, delay2 = %d, delay3 = %d, data = %d"
+            % (x.delay1, x.delay2, x.delay3, x.data)
+        )
         assert (x.delay2 - x.delay1) == 1
         assert x.data <= 10000
 
-#test if additional constraints can be added to the randomized objects
+
+# test if additional constraints can be added to the randomized objects
 def test_adding_constraints():
     print("Running test_adding_constraints")
 
@@ -127,13 +139,16 @@ def test_adding_constraints():
         x.add_constraint(c4)
         x.add_constraint(c5)
         x.randomize()
-        print("delay1 = %d, delay2 = %d, delay3 = %d, data = %d" %
-              (x.delay1, x.delay2, x.delay3, x.data))
-        assert x.delay1 <= x.delay2 # check if c1 still works
+        print(
+            "delay1 = %d, delay2 = %d, delay3 = %d, data = %d"
+            % (x.delay1, x.delay2, x.delay3, x.data)
+        )
+        assert x.delay1 <= x.delay2  # check if c1 still works
         assert x.data < 50  # check if c5 applies
         assert x.data >= 10  # check if c3 applies
 
-#test if a constraint may be added an then deleted
+
+# test if a constraint may be added an then deleted
 def test_deleting_constraints():
     print("Running test_deleting_constraints")
 
@@ -143,18 +158,23 @@ def test_deleting_constraints():
         x = RandomizedTrasaction(i, data=None)
         x.add_constraint(c3)
         x.randomize()
-        print("delay1 = %d, delay2 = %d, delay3 = %d, data = %d" %
-              (x.delay1, x.delay2, x.delay3, x.data))
-        assert x.delay1 <= x.delay2 # check if c1 still works
-        assert x.data < 50 # check if c3 applies
-        x.del_constraint(c3) 
+        print(
+            "delay1 = %d, delay2 = %d, delay3 = %d, data = %d"
+            % (x.delay1, x.delay2, x.delay3, x.data)
+        )
+        assert x.delay1 <= x.delay2  # check if c1 still works
+        assert x.data < 50  # check if c3 applies
+        x.del_constraint(c3)
         x.randomize()
-        print("delay1 = %d, delay2 = %d, delay3 = %d, data = %d" %
-              (x.delay1, x.delay2, x.delay3, x.data))
-        assert x.delay1 <= x.delay2 # check if c1 still works
-        assert x.data > 50 # check if c3 deleted
+        print(
+            "delay1 = %d, delay2 = %d, delay3 = %d, data = %d"
+            % (x.delay1, x.delay2, x.delay3, x.data)
+        )
+        assert x.delay1 <= x.delay2  # check if c1 still works
+        assert x.data > 50  # check if c3 deleted
 
-#test if solve_order function works          
+
+# test if solve_order function works
 def test_solve_order():
     print("Running test_solve_order")
 
@@ -162,11 +182,14 @@ def test_solve_order():
         x = RandomizedTrasaction(i, data=None)
         x.solve_order("delay1", ["delay2", "delay3"])
         x.randomize()
-        print("delay1 = %d, delay2 = %d, delay3 = %d, data = %d" %
-              (x.delay1, x.delay2, x.delay3, x.data))
-        assert x.delay1 <= x.delay2 # check if c1 satisfied
+        print(
+            "delay1 = %d, delay2 = %d, delay3 = %d, data = %d"
+            % (x.delay1, x.delay2, x.delay3, x.data)
+        )
+        assert x.delay1 <= x.delay2  # check if c1 satisfied
 
-#test exception throw when overconstraint occurs      
+
+# test exception throw when overconstraint occurs
 def test_cannot_resolve():
     print("Running test_cannot_resolve")
 
@@ -177,13 +200,14 @@ def test_cannot_resolve():
         x = RandomizedTrasaction(i, data=None)
         x.add_constraint(c3)
         x.add_constraint(c4)
-        try: #we expect excpetion to be thrown each time
+        try:  # we expect excpetion to be thrown each time
             x.randomize()
-            assert 0 
+            assert 0
         except Exception:
-            assert 1     
+            assert 1
 
-#test solutions with zero probability            
+
+# test solutions with zero probability
 def test_zero_probability():
     print("Running test_zero_probability")
 
@@ -193,9 +217,12 @@ def test_zero_probability():
         x = RandomizedTrasaction(i, data=None)
         x.add_constraint(d4)
         x.randomize()
-        print("delay1 = %d, delay2 = %d, delay3 = %d, data = %d" %
-              (x.delay1, x.delay2, x.delay3, x.data))  
-        assert x.delay2 == 0 #check if d4 applies
+        print(
+            "delay1 = %d, delay2 = %d, delay3 = %d, data = %d"
+            % (x.delay1, x.delay2, x.delay3, x.data)
+        )
+        assert x.delay2 == 0  # check if d4 applies
+
 
 class RandomizedDist(crv.Randomized):
 
@@ -210,12 +237,13 @@ class RandomizedDist(crv.Randomized):
         self.add_rand("x", list(range(limit)))
         self.add_rand("y", list(range(limit)))
         self.add_rand("z", list(range(limit)))
-        
+
     def post_randomize(self):
         if self.e_pr:
             self.n = self.x + self.y + self.z + self.n
 
-#test distributions
+
+# test distributions
 def test_distributions_1():
     print("Running test_distributions_1")
 
@@ -231,10 +259,9 @@ def test_distributions_1():
         foo.add_constraint(d2)
         foo.add_constraint(d3)
         foo.randomize()
-        print("x = %d, y = %d, z = %d, n = %d" %
-              (foo.x, foo.y, foo.z, foo.n))
+        print("x = %d, y = %d, z = %d, n = %d" % (foo.x, foo.y, foo.z, foo.n))
         x_gr_y = x_gr_y + 1 if (foo.x > foo.y) else x_gr_y - 1
-        if (i == 1):
+        if i == 1:
             # z should not be randomised as has 0 probability for each
             # solution
             assert foo.z == 0
@@ -243,23 +270,21 @@ def test_distributions_1():
     # probability density distribution
     assert x_gr_y < 0
 
-#test coverage
+
+# test coverage
 def test_cover():
     print("Running test_cover")
     n = 5
 
     cover = coverage.coverage_section(
-        coverage.CoverPoint(
-            "top.c1", xf=lambda x: x.x, bins=list(range(10))),
-        coverage.CoverPoint(
-            "top.c2", xf=lambda x: x.y, bins=list(range(10))),
-        coverage.CoverCheck("top.check", f_fail=lambda x: x.n != n)
+        coverage.CoverPoint("top.c1", xf=lambda x: x.x, bins=list(range(10))),
+        coverage.CoverPoint("top.c2", xf=lambda x: x.y, bins=list(range(10))),
+        coverage.CoverCheck("top.check", f_fail=lambda x: x.n != n),
     )
 
     @cover
     def sample(x):
-        print("x = %d, y = %d, z = %d, n = %d" %
-              (foo.x, foo.y, foo.z, foo.n))
+        print("x = %d, y = %d, z = %d, n = %d" % (foo.x, foo.y, foo.z, foo.n))
 
     for _ in range(10):
         foo = RandomizedDist(10, n)
@@ -269,21 +294,24 @@ def test_cover():
     coverage_size = coverage.coverage_db["top"].size
     coverage_level = coverage.coverage_db["top"].coverage
 
-    assert coverage_level > coverage_size / 2  # expect >50%
+    assert (
+        coverage_level > coverage_size / 2
+    ), f"coverage_level={coverage_level} <= {coverage_size / 2}"  # expect >50%
 
-#test if post_randomize works
+
+# test if post_randomize works
 def test_post_randomize():
     print("Running test_post_randomize")
 
     n = 5
     foo = RandomizedDist(10, n)
-    foo.e_pr = True #enable post-randomize
+    foo.e_pr = True  # enable post-randomize
     for _ in range(5):
         foo.randomize()
-        print("x = %d, y = %d, z = %d, n = %d" %
-              (foo.x, foo.y, foo.z, foo.n))
-        
+        print("x = %d, y = %d, z = %d, n = %d" % (foo.x, foo.y, foo.z, foo.n))
+
     assert foo.n > 5
+
 
 def test_issue28():
     print("Running test_issue28")
@@ -294,21 +322,22 @@ def test_issue28():
             self.dac_max = 0
             self.dac_min = 0
 
-            self.add_rand("dac_max",         list(range(16)))
-            self.add_rand("dac_min",         list(range(16)))
-            self.add_constraint(lambda dac_max, dac_min : dac_max > dac_min   )
+            self.add_rand("dac_max", list(range(16)))
+            self.add_rand("dac_min", list(range(16)))
+            self.add_constraint(lambda dac_max, dac_min: dac_max > dac_min)
 
     foo = Foo()
 
     for _ in range(5):
-        #foo.randomize()
-        #assert foo.dac_max > foo.dac_min
-        foo.randomize_with(lambda dac_max : dac_max == 8)
+        # foo.randomize()
+        # assert foo.dac_max > foo.dac_min
+        foo.randomize_with(lambda dac_max: dac_max == 8)
         assert foo.dac_max == 8
         assert foo.dac_max > foo.dac_min
-        foo.randomize_with(lambda dac_max : dac_max == 8, lambda dac_min : dac_min == 2)
+        foo.randomize_with(lambda dac_max: dac_max == 8, lambda dac_min: dac_min == 2)
         assert foo.dac_max == 8
         assert foo.dac_min == 2
+
 
 def test_issue27():
     print("Running test_issue27")
@@ -323,23 +352,24 @@ def test_issue27():
 
             self.add_rand("x")
             try:
-               self.add_rand("y ")
+                self.add_rand("y ")
             except:
-               exception_fired[0] = True
+                exception_fired[0] = True
 
     foo = Foo()
     assert exception_fired[0]
 
+
 def test_issue34():
     print("Running test_issue34")
-    #testcase provided by sjalloq, thanks!
+    # testcase provided by sjalloq, thanks!
 
     class RandTrxn(crv.Randomized):
-        """
-        """
+        """ """
+
         def __init__(self):
             crv.Randomized.__init__(self)
-            self.rnw  = 0
+            self.rnw = 0
             self.addr = 0
 
             self.add_rand("rnw", range(2))
@@ -347,24 +377,23 @@ def test_issue34():
 
             # Constrain the channel distribution
             self.add_constraint(lambda rnw: 0.5 if rnw else 0.5)
-            self.add_constraint(lambda addr,rnw: addr < 31 if rnw else addr < 16)
+            self.add_constraint(lambda addr, rnw: addr < 31 if rnw else addr < 16)
 
-            #this line is required to make sure rnw is randomized first
+            # this line is required to make sure rnw is randomized first
             self.solve_order("rnw", "addr")
 
         def __repr__(self):
-            return "rnw=%s addr=%s"%(
-              self.rnw, self.addr)
-
+            return "rnw=%s addr=%s" % (self.rnw, self.addr)
 
     reads = 0
     spi = RandTrxn()
     for _ in range(10000):
         spi.randomize()
         if spi.rnw:
-            reads +=1
+            reads += 1
 
-    assert 4900 < reads < 5100 #expect 50/50 distribution
+    assert 4900 < reads < 5100  # expect 50/50 distribution
+
 
 def test_cdtg():
     print("Running test_cdtg")
@@ -377,9 +406,9 @@ def test_cdtg():
             crv.Randomized.__init__(self)
             self.x = 0
             self.add_rand("x", list(range(10)))
-            self.add_constraint(lambda x : x not in covered)
+            self.add_constraint(lambda x: x not in covered)
 
-    @coverage.CoverPoint("top.cdtg_coverage", xf = lambda obj : obj.x, bins = list(range(10)))
+    @coverage.CoverPoint("top.cdtg_coverage", xf=lambda obj: obj.x, bins=list(range(10)))
     def sample_coverage(obj):
         covered.append(obj.x)
 
@@ -388,7 +417,10 @@ def test_cdtg():
         obj.randomize()
         sample_coverage(obj)
 
-    assert coverage.coverage_db["top.cdtg_coverage"].coverage == 10 #expect all covered in 10 steps
+    assert (
+        coverage.coverage_db["top.cdtg_coverage"].coverage == 10
+    )  # expect all covered in 10 steps
+
 
 def test_issue40():
     print("Running test_issue40")
@@ -401,22 +433,23 @@ def test_issue40():
             self.y = 0
             self.z = 0
 
-            self.add_rand('x', list(range(10)))
-            self.add_rand('y', list(range(10)))
-            self.add_rand('z', list(range(10)))
+            self.add_rand("x", list(range(10)))
+            self.add_rand("y", list(range(10)))
+            self.add_rand("z", list(range(10)))
 
             self.add_constraint(lambda x: 0 <= x <= 5)
             self.add_constraint(lambda y: 0 <= y <= 6)
-            self.add_constraint(lambda x,y,z: x+y+z < 15)
+            self.add_constraint(lambda x, y, z: x + y + z < 15)
 
-            self.solve_order(['x', 'y'], 'z')
+            self.solve_order(["x", "y"], "z")
 
     my_obj = my_random()
-    my_obj.add_constraint(lambda x,y,z: x+y+z < 10)
+    my_obj.add_constraint(lambda x, y, z: x + y + z < 10)
     my_obj.randomize()
     assert 0 <= my_obj.x <= 5
     assert 0 <= my_obj.y <= 6
     assert my_obj.x + my_obj.y + my_obj.z < 10
+
 
 def test_solve_order_tutorial():
     print("Running solve_order_tutorial")
@@ -433,11 +466,11 @@ def test_solve_order_tutorial():
             self.add_rand("y", list(range(128)))
             self.add_rand("z", list(range(128)))
 
-            self.add_constraint(lambda x, y: x < 2*y)
+            self.add_constraint(lambda x, y: x < 2 * y)
             self.add_constraint(lambda y, z: y + z == 128)
-            self.add_constraint(lambda x, z: (x+z)%2 == 0)
+            self.add_constraint(lambda x, z: (x + z) % 2 == 0)
 
-            self.solve_order('x', ['y', 'z'])
+            self.solve_order("x", ["y", "z"])
 
     for _ in range(10):
 
@@ -445,9 +478,10 @@ def test_solve_order_tutorial():
         r.randomize()
         print(f"x={r.x} y={r.y} z={r.z}")
 
-        assert(r.x < 2*r.y)
-        assert(r.y + r.z == 128)
-        assert((r.x + r.z) % 2 == 0)
+        assert r.x < 2 * r.y
+        assert r.y + r.z == 128
+        assert (r.x + r.z) % 2 == 0
+
 
 def test_constraints_tutorial():
     print("Running test_constraints_tutorial")
@@ -455,21 +489,20 @@ def test_constraints_tutorial():
     class RandExample(crv.Randomized):
 
         def __init__(self, z):
-            crv.Randomized.__init__(self)                   # initialize super-class
-            self.x = 0                                      # define class members and their default values
+            crv.Randomized.__init__(self)  # initialize super-class
+            self.x = 0  # define class members and their default values
             self.y = 0
-            self.z = z                                      # "z" is not a random variable
+            self.z = z  # "z" is not a random variable
 
-            self.x_c = lambda x, z: x > z                   # define a constraint that is not used by default
+            self.x_c = lambda x, z: x > z  # define a constraint that is not used by default
 
-            self.add_rand("x", list(range(16)))             # full 4-bit space
-            self.add_rand("y", list(range(16)))             # full 4-bit space
+            self.add_rand("x", list(range(16)))  # full 4-bit space
+            self.add_rand("y", list(range(16)))  # full 4-bit space
 
             # add constraints
-            self.add_constraint(lambda x, z : x != z)       # constraint for standalone "x"
-            self.add_constraint(lambda y, z : y <= z)       # constraint for standalone "y"
-            self.add_constraint(lambda x, y : x + y == 8)   # constraint for combined "x" and "y"
-
+            self.add_constraint(lambda x, z: x != z)  # constraint for standalone "x"
+            self.add_constraint(lambda y, z: y <= z)  # constraint for standalone "y"
+            self.add_constraint(lambda x, y: x + y == 8)  # constraint for combined "x" and "y"
 
     for ii in range(8):
 
